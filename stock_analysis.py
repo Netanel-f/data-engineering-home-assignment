@@ -132,7 +132,7 @@ def calc_volatility(df):
     TOTAL_TRADING_DAYS = 252
     ANNUALIZED_VOLATILITY_FACTOR = TOTAL_TRADING_DAYS ** 0.5
 
-    avg_daily_return_df = compute_daily_return(df)
+    avg_daily_return_df = compute_avg_daily_return(df)
 
     volatile_df = (avg_daily_return_df
                    .groupBy("ticker")
