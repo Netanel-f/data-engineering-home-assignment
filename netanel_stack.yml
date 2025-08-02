@@ -1,0 +1,185 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Infrastructure for Data Engineering Assignment
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Default: "data-engineer-assignment-netanel"
+    Description: The name of the S3 bucket for Glue job scripts and outputs
+
+  GlueJobName:
+    Type: String
+    Default: "DataEngineeringJob-netanel"
+    Description: Name of the Glue job
+
+  GlueDatabaseName:
+    Type: String
+    Default: "stock_analysis_netanel"
+    Description: Name of the Glue Catalog Database
+
+Resources:
+
+  GlueJobBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketName
+      VersioningConfiguration:
+        Status: Enabled
+
+  GlueJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: S3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${S3BucketName}"
+                  - !Sub "arn:aws:s3:::${S3BucketName}/*"
+
+  GlueDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref "AWS::AccountId"
+      DatabaseInput:
+        Name: !Ref GlueDatabaseName
+
+  GlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: !Ref GlueJobName
+      Role: !GetAtt GlueJobRole.Arn
+      Command:
+        Name: "glueetl"
+        ScriptLocation: !Sub "s3://${S3BucketName}/etl_script/stock_analysis.py"
+        PythonVersion: "3"
+      GlueVersion: "3.0"
+      MaxCapacity: 2.0
+      DefaultArguments:
+        --TempDir: !Sub "s3://${S3BucketName}/temp/"
+        --enable-metrics: "true"
+        --job-bookmark-option: "job-bookmark-enable"
+      ExecutionProperty:
+        MaxConcurrentRuns: 1
+
+  AvgDailyReturnCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: "AvgDailyReturnCrawler"
+      Role: !GetAtt GlueJobRole.Arn
+      DatabaseName: !Ref GlueDatabaseName
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://${S3BucketName}/outputs/avg_daily_return/"
+
+  HighestWorthCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: "HighestWorthCrawler"
+      Role: !GetAtt GlueJobRole.Arn
+      DatabaseName: !Ref GlueDatabaseName
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://${S3BucketName}/outputs/highest_worth/"
+
+  MostVolatileCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: "MostVolatileCrawler"
+      Role: !GetAtt GlueJobRole.Arn
+      DatabaseName: !Ref GlueDatabaseName
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://${S3BucketName}/outputs/most_volatile/"
+
+  TopThree30DayReturnCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: "TopThree0DayReturnCrawler"
+      Role: !GetAtt GlueJobRole.Arn
+      DatabaseName: !Ref GlueDatabaseName
+      TablePrefix: "top_30_day_return_"
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://${S3BucketName}/outputs/top_three_30_days/"
+
+  DailyJobTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: "DailyTrigger-DataEngineeringJob-netanel"
+      Type: "SCHEDULED"
+      Schedule: "cron(0 0 * * ? *)"
+      Actions:
+        - JobName: !Ref GlueJobName
+      StartOnCreation: true
+
+  TriggerAvgDailyReturnCrawler:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: "Trigger-AvgDailyReturnCrawler"
+      Type: "CONDITIONAL"
+      StartOnCreation: true
+      Predicate:
+        Conditions:
+          - JobName: !Ref GlueJobName
+            LogicalOperator: "EQUALS"
+            State: "SUCCEEDED"
+      Actions:
+        - CrawlerName: !Ref AvgDailyReturnCrawler
+
+  TriggerHighestWorthCrawler:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: "Trigger-HighestWorthCrawler"
+      Type: "CONDITIONAL"
+      StartOnCreation: true
+      Predicate:
+        Conditions:
+          - JobName: !Ref GlueJobName
+            LogicalOperator: "EQUALS"
+            State: "SUCCEEDED"
+      Actions:
+        - CrawlerName: !Ref HighestWorthCrawler
+
+  TriggerMostVolatileCrawler:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: "Trigger-MostVolatileCrawler"
+      Type: "CONDITIONAL"
+      StartOnCreation: true
+      Predicate:
+        Conditions:
+          - JobName: !Ref GlueJobName
+            LogicalOperator: "EQUALS"
+            State: "SUCCEEDED"
+      Actions:
+        - CrawlerName: !Ref MostVolatileCrawler
+
+  TriggerTopThree30DayReturnCrawler:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: "Trigger-TopThree30DayReturnCrawler"
+      Type: "CONDITIONAL"
+      StartOnCreation: true
+      Predicate:
+        Conditions:
+          - JobName: !Ref GlueJobName
+            LogicalOperator: "EQUALS"
+            State: "SUCCEEDED"
+      Actions:
+        - CrawlerName: !Ref TopThree30DayReturnCrawler
