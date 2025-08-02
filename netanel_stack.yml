@@ -114,7 +114,6 @@ Resources:
       Name: "TopThree0DayReturnCrawler"
       Role: !GetAtt GlueJobRole.Arn
       DatabaseName: !Ref GlueDatabaseName
-      TablePrefix: "top_30_day_return_"
       Targets:
         S3Targets:
           - Path: !Sub "s3://${S3BucketName}/outputs/top_three_30_days/"
