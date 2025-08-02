@@ -5,7 +5,7 @@ My stack in cloudformation is consist of S3 Bucket, Glue DB, Glue Job ,4xGlue Cr
 
 Basically my Glue job schedule to run everyday at midnight UTC, and my crawlers set to be triggered by Conditional trigger for the GlueJob state. Meaning Once the Glue job finishes successfully, the crawlers will start running.
 
-## Some data assumptions I made:
+## Some data assumptions I made
 - For a row with missing close price there's a row with close_price.
   Meaning there are no two consecutive rows with missing close price.
 - Obj. 4: I assumed all dates exists in the dataset but might be with empty close price (as before).
